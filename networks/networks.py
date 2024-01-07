@@ -1,14 +1,16 @@
-from torch      import nn
-from torch.nn   import init
+from torch import nn
+from torch.nn import init
+import torch
+import torch.nn.functional as F
 
 
 class Dense(nn.Module):
     def __init__(self,
                  dim_in,
                  dim_out,
-                 activation     = nn.ELU(),
-                 using_norm     = True,
-                 initialization = None
+                 activation=nn.ELU(),
+                 using_norm=True,
+                 initialization=None
                  ):
         super().__init__()
         self.using_norm = using_norm
@@ -51,8 +53,9 @@ class MLP(nn.Module):
                  dim_in,
                  dim_hidden,
                  dim_out,
-                 n_layers=2,
+                 n_layers=4,
                  act=nn.ELU(),
+                # act=nn.ReLU(),
                  output_act=None,
                  **kwargs):
         super().__init__()
@@ -65,8 +68,36 @@ class MLP(nn.Module):
         layers.append(output_layer)
 
         self.model = nn.Sequential(*layers)
+        # Append a Softmax layer to the model
+       # self.model.add_module('softmax', nn.Softmax(dim=-1))
 
     def forward(self, x):
         x = self.model(x)
-
         return x
+
+class ActorContinuous(nn.Module):
+    def __init__(self,
+                 dim_in,
+                 dim_hidden,
+                 dim_out,
+                 n_layers=5,
+                 act=nn.ELU(),
+                 output_act=None,
+                 **kwargs):
+        super(ActorContinuous, self).__init__()
+        n_hidden = n_layers - 2
+        input_layer = Dense(dim_in=dim_in, dim_out=dim_hidden, activation=act, **kwargs)
+        layers = [input_layer]
+        for i in range(n_hidden):
+            layers.append(Dense(dim_in=dim_hidden, dim_out=dim_hidden, activation=act, **kwargs))
+        output_layer = Dense(dim_in=dim_hidden, dim_out=dim_out, activation=output_act, **kwargs)
+        layers.append(output_layer)
+        self.fc_mean = nn.Linear(dim_in, dim_out)  # Fully connected layer for mean
+        self.fc_std = nn.Linear(dim_in, dim_out)  # Fully connected layer for standard deviation
+
+    def forward(self, x):
+        mean = self.fc_mean(x)  # Mean for continuous actions
+        std = torch.exp(self.fc_std(x))  # Standard deviation for continuous actions (log std)
+        return mean, std
+
+

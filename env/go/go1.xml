@@ -1,6 +1,6 @@
 <mujoco model="go1">
   <compiler angle="radian" meshdir="assets" autolimits="true"/>
-
+ 
   <option collision="predefined" timestep="0.001"/>
   <contact>
     <pair geom1="FR" geom2="floor" solimp="0.99 0.99 0.0001" solref="0.0001 1" />
@@ -213,5 +213,5 @@
     <key name="home" qpos="0 0 0.34 1 0 0 0 0 0 -1.0 0 0 -1.0 0 0 -1.0 0 0 -1.0"
       ctrl="0 0 -1.0 0 0 -1.0 0 0 -1.0 0 0 -1.0"/>
   </keyframe>
-
+  
 </mujoco>

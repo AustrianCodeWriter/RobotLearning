@@ -1,0 +1,103 @@
+numpy~=1.24.3
+gymnasium~=0.28.1
+mujoco~=2.3.7
+torch~=2.0.1
+wandb~=0.15.0
+
+predict probability of actions to be taken - given by neural network (no need for Q value calculation)
+episodic - reward given at the end of episode
+
+more frequently update - lower variance --> better are shorter episodes (less steps)
+
+ACTOR CRITIC - learn incrementlly without waiting all episode ends
+actor is policy network (reinforce)
+critic is state value network (dqns)
+
+Actor Loss function for reinforce alg (actor) is updated:
+loss= -1 x SUM log (probability) x discounted_reward ( = Reward + gamma V(s' *q of future state) - V(s)) --> this part comes from critic
+
+Critic loss function:
+mean square error Target and printed Q value
+
+TOTAL loss of alg. = critic loss + actor loss
+
+Expirerience replay
+online = update agent after every step / action taken
+N STEP - after N step we will  train whole system
+
+
+reward functions and constraints on exploring the action space are very important for training speed. 
+implemented PPO and GAE and altererd the reward functions
+losses for actor and critic quickly converge to nearly zero but the reward is not getting any better. 
+
+Implement losses for actor and critic --> this influence reward
+If the model's prediction is perfect, the loss is zero; otherwise, the loss is greater.
+
+loss = predicted output - real output
+
+use log to get probability
+
+1. GET ACTION BY TRANSFORMING STATE
+The action is the most complex variable to generate. First we generate μ and σ:
+
+μ,σ=π(st)  OR μ,log(σ)=π(st)
+π represents the actor’s neural network transforming the state
+
+μ and σ define the mean and standard deviation of a vector of normal distributions which we can then sample from individually to get the action vector:
+
+at->N(μ,σ)
+
+2. GET CRITIC NETWORK
+define a second neural network called the critic:
+
+Rt=V(st)
+ V(st) represents the critic’s neural network transforming the state
+Rt defines the discounted returns that the critic expects to receive from this time step and onward. When all of the timesteps have been gathered, we can calculate what the actual value of the discounted returns was at every timestep by rolling out the episode:
+
+Gt=t = sum γt rt
+
+3. TRAIN CRITIC NETWORK - ***** GAE ****
+Training the critic’s neural network is straightforward after these values have been calculated. We define the mean squared error:
+
+Lcritic=(V(st)-Gt)2 
+
+and it’s derivative:
+
+▽Lcritic= -2 (Gt-V(st))
+
+We can now feed this value into the neural network and perform back-propagation to improve its predictions by minimising this derivative.
+
+4. ACTOR PART
+Actor Back-Propagation
+
+First, we define the advantage function:
+
+A(st)=Q(st)-V(st) 
+
+5. DEFINE POLICY GRADIENT THEOREM
+Jactor=Eπ[V(τ)] 
+Where τ defines the trajectory, which is the sequence of states, actions and reward tuples
+
+The actor’s objective is to maximise Jactor, which is the expected value of the returns from the sampled timesteps. ACTOR GOAL IS TO MAXIMIZE REWARD
+We can expand the function by expanding out the expected value:
+
+Eπ[V(τ)]= p(τ) V(τ) 
+
+The probability here comes from the actor’s neural network, since it alone is responsible for the probability of encountering the trajectory. The expected value can then be re-written:
+
+Eπ[V(τ)]= π(τ) V(τ) 
+Where π(τ) actor’s neural network defining the probability of the trajectory implicitly
+----------
+--------..................
+▽Eπ[V(τ)]=Eπ[▽log π(τ) V(τ)]
+
+As discussed before, the probability comes from π(τ), which implicitly controls the returns we see when we sample a large amount of timesteps. We can also treat V(τ) as a constant since the actors parameters will not change the value of V(τ) under that particular trajectory.
+▽Eπ[V(τ)]=1π(τ) V(τ)
+...........
+
+In practice, we sample a large amount of timesteps, then calculate the returns and probabilities from there to get the derivative. Just like the critic, we can then feed this derivative into the actor’s neural network and perform back-propagation to improve the expected returns, and therefore the actor’s action selection.
+
+In practice, we can replace V(τ) with A(τ), which can be easily proven by showing that subtracting a baseline ‘b’ from the original equation doesn’t affect the derivative:
+▽Eπ[b]= ▽π(τ) b 
+
+
