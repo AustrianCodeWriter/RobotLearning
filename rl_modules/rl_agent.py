@@ -92,7 +92,7 @@ class RLAgent(nn.Module):
             # Value function loss, for the definition check: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/ part 9.
             value_batch = self.actor_critic.evaluate(critic_observations_batch)
             value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(-self.epsilon_clip,
-                                                                                            self.clip_param)
+                                                                                            self.epsilon_clip)
 
             value_losses = (value_batch - returns_batch).pow(2)
             value_losses_clipped = (value_clipped - returns_batch).pow(2)
