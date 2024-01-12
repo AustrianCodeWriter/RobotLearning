@@ -1,14 +1,14 @@
-from torch      import nn
-from torch.nn   import init
+from torch import nn
+from torch.nn import init
 
 
 class Dense(nn.Module):
     def __init__(self,
                  dim_in,
                  dim_out,
-                 activation     = nn.ELU(),
-                 using_norm     = True,
-                 initialization = None
+                 activation=nn.ELU(),
+                 using_norm=True,
+                 initialization=None
                  ):
         super().__init__()
         self.using_norm = using_norm

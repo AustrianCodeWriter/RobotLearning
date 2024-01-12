@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+
 class Storage:
     class Transition:  # Represents a single transition in the environment,
         def __init__(self):
@@ -54,10 +55,8 @@ class Storage:
     def clear(self):
         self.step = 0
 
-    # TODO. implement GAE #Bias/Variance trade-off
-    def compute_returns(self, last_values):
+    def compute_advantages(self, last_values):
         next_advantages = 0
-        # Computes returns and advantages for each timestep in reverse order: max_timestep - 1,...,0
         for step in reversed(range(self.max_timesteps)):
             # last_values: next_obs
             if step == self.max_timesteps - 1:
@@ -68,19 +67,17 @@ class Storage:
             # check if is the "step" is healthy or unhealthy, if healthy  next_is_not_terminate = 1 - 0, if unhealthy
             # next_is_not_terminate = 1-1 = 0
 
-
+            #GAE implementation
             # delta(t) = r(t) + gamma*V(st+1) - V(s) = A(st, at) = Q(s,a) - V(s) = A(st, at)
             delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
-            #self.advantages[step] = delta
+            # self.advantages[step] = delta
             # A(t) = delta(t) +  gamma(t)*lambda(t)*A(t+1)
             next_advantages = delta + self.gamma * self.lambda_ * next_advantages * next_is_not_terminate
             self.advantages[step] = next_advantages
-            self.returns[step] = self.advantages[step] + self.values[step]
 
-
-
-
-
+    def compute_returns(self, last_values):
+        self.compute_advantages(last_values)
+        self.returns = self.advantages + self.values
 
     def mini_batch_generator(self, num_batches, num_epochs=8, device="cpu"):
         batch_size = self.max_timesteps // num_batches
@@ -90,6 +87,10 @@ class Storage:
         actions = torch.from_numpy(self.actions).to(device).float()
         values = torch.from_numpy(self.values).to(device).float()
         advantages = torch.from_numpy(self.advantages).to(device).float()
+        old_actions_log_prob = torch.from_numpy(self.actions_log_prob).to(device).float()
+        critic_observations = obs
+        returns = torch.from_numpy(self.returns).to(device).float()
+
 
         for epoch in range(num_epochs):
             for i in range(num_batches):
@@ -101,4 +102,8 @@ class Storage:
                 actions_batch = actions[batch_idx]
                 target_values_batch = values[batch_idx]
                 advantages_batch = advantages[batch_idx]
-                yield (obs_batch, actions_batch, target_values_batch, advantages_batch)
+                old_actions_log_prob_batch = old_actions_log_prob[batch_idx]
+                critic_observations_batch = critic_observations[batch_idx]
+                returns_batch = returns[batch_idx]
+                yield (obs_batch, actions_batch, target_values_batch, advantages_batch, old_actions_log_prob_batch,
+                       critic_observations_batch, returns_batch )

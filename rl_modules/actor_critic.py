@@ -1,3 +1,4 @@
+import numpy
 import torch
 import torch.nn as nn
 from networks.networks import MLP
@@ -45,6 +46,9 @@ class ActorCritic(nn.Module):
         # Action distribution
         self.std = nn.Parameter(init_std * torch.ones(action_dim))
         self.distribution = None
+        self.old_distribution = None
+        self.new_distribution = None
+
 
     def action_mean(self):
         return self.distribution.mean
@@ -88,3 +92,5 @@ class ActorCritic(nn.Module):
     def evaluate(self, critic_observations, **kwargs):
         value = self.critic(critic_observations)
         return value
+
+

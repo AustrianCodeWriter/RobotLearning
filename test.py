@@ -19,7 +19,7 @@ def test():
     rl_agent = RLAgent(env=go_env, actor_critic=actor_critic, storage=storage, device=device)
 
     #rl_agent.load_model('checkpoints/2023-11-29/16-35-42/best.pt')
-    rl_agent.load_model('checkpoints/2024-01-06/22-43-32/900.pt')
+    rl_agent.load_model('checkpoints/2024-01-06/19-29-09/900.pt')
     rl_agent.play(is_training=False)
 
 

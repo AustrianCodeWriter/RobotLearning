@@ -2,6 +2,7 @@ import numpy as np
 from gymnasium.envs.mujoco.mujoco_env import MujocoEnv
 from gymnasium.spaces import Box
 import os
+import math
 
 
 # computing rewards, taking simulation steps, and resetting the environment.
@@ -60,6 +61,41 @@ class GOEnv(MujocoEnv):
     def upper_limits(self):
         return np.array([0.863, 4.501, -0.888] * 4)
 
+    ''' Abduction Joint (FR_hip_joint):
+        Joint Type: abduction
+        Axis: [1, 0, 0]
+        Damping: 1
+        Range: [-0.863, 0.863]
+        Hip Joint (FR_thigh_joint):
+        
+        Joint Type: hip
+        Range: [-0.686, 4.501]
+        Knee Joint (FR_calf_joint):
+        
+        Joint Type: knee
+        Range: [-2.818, -0.888]
+        Force Range: [-35.55, 35.55]
+        Abduction Joint (FL_hip_joint):
+        
+        Joint Type: abduction
+        Axis: [1, 0, 0]
+        Damping: 1
+        Range: [-0.863, 0.863]
+        Hip Joint (FL_thigh_joint):
+        
+        Joint Type: hip
+        Range: [-0.686, 4.501]
+        Knee Joint (FL_calf_joint):
+        
+        Joint Type: knee
+        Range: [-2.818, -0.888]
+        Force Range: [-35.55, 35.55]
+        Other Trunk Joint (Not specified explicitly, but part of the <default class="go1">):
+
+        There might be additional joints specified implicitly or by default settings in the Mujoco XML under the <default class="go1"> section.
+    '''
+    # 7 joints for trunk 12 joints for leg
+    # Legs (FR, FL, RR, RL) abduction, hip, knee
     @property
     def init_joints(self):
         return np.array([0, 0, 0.37, 1, 0, 0, 0] + [0, 0.7, -1.4] * 4)
@@ -111,65 +147,48 @@ class GOEnv(MujocoEnv):
     # ------------ reward functions----------------
 
     def _reward_healthy(self):
-        if self.is_healthy:
-            return 5
-        else:
-            return -5
-        #return (self.is_healthy - 1) * 5
+        return (self.is_healthy - 1) * 5
 
 
     def _reward_lin_vel(self, before_pos, after_pos):
-        target_vel = np.array([0.5, 0, 0])  # moving in x direction, robot torso
+        target_vel = np.array([0.5, 0, 0])
         lin_vel = (after_pos - before_pos) / self.dt
+        #print(f'data.qpos: {self.data.qpos}')
+        #print(f'self.init_qpos: {self.init_qpos}')
+        #print(f'self.init_joint: {self.init_joints}')
+        return np.exp(-10 * np.linalg.norm(target_vel - lin_vel))
 
-        init_torso_height = 0.371
-        tolerance = 0.3
-        torso_height_reward = 0
-        if abs(init_torso_height - after_pos[2]) < tolerance:
-            torso_height_reward = 1
-        # print(f"dt:{self.dt}")
-        print(f"Lin vel: {lin_vel}")
+    def reward_standing(self):
+        target_vel = np.array([0, 0, 0])
+        #TODO: should we compare with init_qpos or init_joint?
+        joint_position_error = np.sum(np.abs(self.data.qpos - self.init_qpos))
+        return joint_position_error*(np.linalg.norm(target_vel) < 0.1)
 
-        # forward movements reward
-        forward_reward = 10*np.exp(-10 * np.linalg.norm(target_vel - lin_vel)) + 1
-        print(f"forward reward: {forward_reward}")
 
-        # penalize sideways movements
-        sideways_penalty = np.exp(-10*np.linalg.norm(self.base_rotation))
-        print(f"sideways penalty: {sideways_penalty}")
 
-        # penalize backwards movements
-        backward_penalty = np.array([before_pos[0] - after_pos[0], 0, 0])
-        backward_penalty = np.exp(-10 * np.linalg.norm(backward_penalty))
-        print(f"backward penalty: {backward_penalty}")
-
-        total_penalty = sideways_penalty + backward_penalty
-        print(f"total penalty lin velocity: {total_penalty}")
-        total_reward = forward_reward + torso_height_reward - total_penalty
-        print(f"total reward lin velocity: {total_reward}")
-
-        #  np.linalg.norm computes magnitude of the vector
-        return total_reward
-        #return np.exp(-10 * np.linalg.norm(target_vel - lin_vel))
+            #np.sum(np.abs(joint_angles - self._default_pose)) * (np.sign(commands[:2]).item() < 0)
 
 
     # TODO: reward_angular_vel
 
     def step(self, delta_q):  # SIMULATION
+        #and adds it to the last 12 elements of the current joint positions
         action = delta_q + self.data.qpos[-12:]
-        # action values outside the ranges will be replaced with the limits values
+        #The resulting action is then clipped to ensure it falls within specified lower and upper limits.
         action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
 
-        before_pos = self.data.qpos[:3].copy()
 
-        # method to perform a simulation step with the computed action.
+
+        before_pos = self.data.qpos[:3].copy()
         self.do_simulation(action, self.frame_skip)
         after_pos = self.data.qpos[:3].copy()
 
-
         lin_v_track_reward = self._reward_lin_vel(before_pos, after_pos)
         healthy_reward = self._reward_healthy()
+        reward_standing = self.reward_standing();
         total_rewards = 5.0 * lin_v_track_reward + 1.0 * healthy_reward
+        #total_rewards = 5.0 * lin_v_track_reward + 1.0 * healthy_reward + 5.0* reward_standing
+
 
         terminate = self.terminated
         observation = self._get_obs()
@@ -179,11 +198,9 @@ class GOEnv(MujocoEnv):
             "healthy_reward": healthy_reward,
             "traverse": self.data.qpos[0],
         }
-        print(info)
 
         if self.render_mode == "human":
             self.render()
-        # return next observation
         return observation, total_rewards, terminate, info
 
     # randomly initializes joint positions and velocities with added noise.
