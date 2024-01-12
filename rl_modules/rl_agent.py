@@ -86,7 +86,7 @@ class RLAgent(nn.Module):
             # surrogate function
             ratio = torch.exp(actions_log_prob_batch - old_actions_log_prob_batch)
             surrogate = -ratio * advantages_batch
-            surrogate_clipped = -torch.clamp_(ratio, 1 - self.epsilon_clip, 1 + self.epsilon_clip)
+            surrogate_clipped = -torch.clamp(ratio, 1 - self.epsilon_clip, 1 + self.epsilon_clip)
             surrogate_loss = torch.max(surrogate, surrogate_clipped).mean()
 
             # Value function loss, for the definition check: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/ part 9.
