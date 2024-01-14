@@ -49,7 +49,7 @@ class ActorCritic(nn.Module):
         self.old_distribution = None
         self.new_distribution = None
 
-
+    @property
     def action_mean(self):
         return self.distribution.mean
 

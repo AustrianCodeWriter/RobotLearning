@@ -13,7 +13,7 @@ class RLAgent(nn.Module):
                  storage: Storage,
                  actor_critic: ActorCritic,
                  lr=1e-3,  # learning rate for an Adam optimizer
-                 value_loss_coef=1.0,
+                 value_loss_coef=0.8,
                  num_batches=1,
                  num_epochs=1,
                  device='cpu',
@@ -34,7 +34,7 @@ class RLAgent(nn.Module):
 
         # OOP parameters
         self.epsilon_clip = 0.2
-        self.entropy_coef = 0.1
+        self.entropy_coef = 0.001
         self.max_grad_norm = 1.0
 
         # Uses the actor_critic to calculate an action, value, and action log probability.
@@ -74,6 +74,8 @@ class RLAgent(nn.Module):
         generator = self.storage.mini_batch_generator(self.num_batches, self.num_epochs,
                                                       device=self.device)  # get data from storage
 
+        torch.autograd.set_detect_anomaly(True)
+
         for obs_batch, actions_batch, target_values_batch, advantages_batch, old_actions_log_prob_batch, critic_observations_batch, returns_batch  in generator:
             # Normalize the advantages not sure if we should do that
             # advantages_batch = (advantages_batch - advantages_batch.mean()) / (advantages_batch.std() + 1e-8)
@@ -85,14 +87,13 @@ class RLAgent(nn.Module):
 
             # surrogate function
             ratio = torch.exp(actions_log_prob_batch - old_actions_log_prob_batch)
-            surrogate = -ratio * advantages_batch
-            surrogate_clipped = -torch.clamp(ratio, 1 - self.epsilon_clip, 1 + self.epsilon_clip)
-            surrogate_loss = torch.max(surrogate, surrogate_clipped).mean()
+            surrogate = ratio * advantages_batch
+            surrogate_clipped = torch.clamp(ratio, 1 - self.epsilon_clip, 1 + self.epsilon_clip) * advantages_batch
+            surrogate_loss = -torch.min(surrogate, surrogate_clipped).mean()
 
             # Value function loss, for the definition check: https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/ part 9.
-            value_batch = self.actor_critic.evaluate(critic_observations_batch)
-            value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(-self.epsilon_clip,
-                                                                                            self.epsilon_clip)
+            value_batch = self.actor_critic.evaluate(critic_observations_batch) #?
+            value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(-self.epsilon_clip,self.epsilon_clip)
 
             value_losses = (value_batch - returns_batch).pow(2)
             value_losses_clipped = (value_clipped - returns_batch).pow(2)
@@ -105,16 +106,20 @@ class RLAgent(nn.Module):
             loss = actor_loss + self.value_loss_coef * critic_loss'''
 
             loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
-
-            critic_loss = value_loss
+            new_values = self.actor_critic.evaluate(obs_batch)
+            critic_loss = (returns_batch - new_values).pow(2).mean()
+            #critic_loss = value_loss
             actor_loss = surrogate_loss
+
+            print(f'critic_loss: {critic_loss}')
+            print(f'actor_loss: {actor_loss}')
 
             # Gradient step
             # update parameters
             self.optimizer.zero_grad()
             loss.backward()
             #should we use this gradient clipping? it is to prevent unstable training
-            nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
+            #nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             mean_value_loss += critic_loss.item()
@@ -158,14 +163,14 @@ class RLAgent(nn.Module):
         for it in range(num_learning_iterations):
             # play games to collect data => ROLLOUT PHASE
             infos = self.play(is_training=True)
-            print(infos)
+
 
             # improve policy with collected data => LEARNING PHASE => agent learns from collected data in Rollout phase
             mean_value_loss, mean_actor_loss = self.update()
             print(f"mean value loss: {mean_value_loss}")
             print(f"mean actor loss: {mean_actor_loss}")
 
-            print(f"infos: {infos}")
+            #print(f"infos: {infos}")
             if it % num_steps_per_val == 0:
                 infos = self.play(is_training=False)
                 self.save_model(os.path.join(save_dir, f'{it}.pt'))
