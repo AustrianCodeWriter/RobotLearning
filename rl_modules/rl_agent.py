@@ -85,6 +85,7 @@ class RLAgent(nn.Module):
 
             entropy_batch = self.actor_critic.entropy
 
+            #implementation of PPO
             # surrogate function
             ratio = torch.exp(actions_log_prob_batch - old_actions_log_prob_batch)
             surrogate = ratio * advantages_batch
@@ -100,15 +101,9 @@ class RLAgent(nn.Module):
             value_loss = torch.max(value_losses, value_losses_clipped).mean()
 
             # compute losses => using calculated advantages function
-            '''actor_loss = (
-                        -advantages_batch * actions_log_prob_batch).mean()  # how far the current policy deviates from the optimal policy
-            critic_loss = advantages_batch.pow(2).mean()  # ow far the predicted values are from the actual returns.
-            loss = actor_loss + self.value_loss_coef * critic_loss'''
 
             loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
-            new_values = self.actor_critic.evaluate(obs_batch)
-            critic_loss = (returns_batch - new_values).pow(2).mean()
-            #critic_loss = value_loss
+            critic_loss = value_loss
             actor_loss = surrogate_loss
 
             print(f'critic_loss: {critic_loss}')
@@ -119,7 +114,7 @@ class RLAgent(nn.Module):
             self.optimizer.zero_grad()
             loss.backward()
             #should we use this gradient clipping? it is to prevent unstable training
-            #nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
+            nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             mean_value_loss += critic_loss.item()
