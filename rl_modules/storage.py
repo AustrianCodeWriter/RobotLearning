@@ -20,7 +20,7 @@ class Storage:
                  obs_dim,
                  action_dim,
                  max_timesteps,  # Maximum number of timesteps to store.
-                 gamma=0.8):  # Discount factor for computing returns.
+                 gamma=0.95):  # Discount factor for computing returns.
         self.max_timesteps = max_timesteps
         self.gamma = gamma
 
@@ -64,9 +64,7 @@ class Storage:
             else:
                 next_values = self.values[step + 1]  # V(st+1)
             next_is_not_terminate = 1.0 - self.dones[step]
-            # check if is the "step" is healthy or unhealthy, if healthy  next_is_not_terminate = 1 - 0, if unhealthy
-            # next_is_not_terminate = 1-1 = 0
-
+            
             #GAE implementation
             # delta(t) = r(t) + gamma*V(st+1) - V(s) = A(st, at) = Q(s,a) - V(s) = A(st, at)
             delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
@@ -90,7 +88,6 @@ class Storage:
         old_actions_log_prob = torch.from_numpy(self.actions_log_prob).to(device).float()
         critic_observations = obs
         returns = torch.from_numpy(self.returns).to(device).float()
-
 
         for epoch in range(num_epochs):
             for i in range(num_batches):

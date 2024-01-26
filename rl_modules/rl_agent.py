@@ -13,11 +13,11 @@ class RLAgent(nn.Module):
                  storage: Storage,
                  actor_critic: ActorCritic,
                  lr=1e-3,  # learning rate for an Adam optimizer
-                 value_loss_coef=0.8,
+                 value_loss_coef=0.9,
                  num_batches=1,
                  num_epochs=1,
                  device='cpu',
-                 action_scale=0.3
+                 action_scale=0.5
                  ):
         super().__init__()
         self.env = env
@@ -85,7 +85,6 @@ class RLAgent(nn.Module):
 
             entropy_batch = self.actor_critic.entropy
 
-            #implementation of PPO
             # surrogate function
             ratio = torch.exp(actions_log_prob_batch - old_actions_log_prob_batch)
             surrogate = ratio * advantages_batch
@@ -113,7 +112,6 @@ class RLAgent(nn.Module):
             # update parameters
             self.optimizer.zero_grad()
             loss.backward()
-            #should we use this gradient clipping? it is to prevent unstable training
             nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
@@ -165,7 +163,6 @@ class RLAgent(nn.Module):
             print(f"mean value loss: {mean_value_loss}")
             print(f"mean actor loss: {mean_actor_loss}")
 
-            #print(f"infos: {infos}")
             if it % num_steps_per_val == 0:
                 infos = self.play(is_training=False)
                 self.save_model(os.path.join(save_dir, f'{it}.pt'))
